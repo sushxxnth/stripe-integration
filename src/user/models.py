@@ -1,41 +1,59 @@
-from enum import Enum
+# Define relationship types
+from datetime import date, datetime
+import enum
+from typing import List, Optional
+from datetime import timezone
+from pydantic import field_validator
+from sqlmodel import Field, Relationship, SQLModel
 
-from src.core.models import BaseModel
-from sqlmodel import Field, SQLModel
+from src.core.models import BaseSQLModel
 
 
-class UserType(str, Enum):
-    employer = "EMPLOYER"
-    job_seeker = "JOB_SEEKER"
-    admin = "ADMIN"
+class RelationType(str, enum.Enum):
+    SPOUSE = "spouse"
+    CHILD = "child"
+    PARENT = "parent"
+    SIBLING = "sibling"
+    GRANDPARENT = "grandparent"
+    GRANDCHILD = "grandchild"
+    UNCLE_AUNT = "uncle_aunt"
+    NIECE_NEPHEW = "niece_nephew"
+    COUSIN = "cousin"
+    OTHER = "other"
 
 
-class UserSource(str, Enum):
-    self = "SELF"
-    google = "GOOGLE"
-    linkedin = "LINKEDIN"
+# Models
+class FamilyRelationshipBase(SQLModel):
+    relation_type: RelationType = Field(...)
+
+
+class FamilyRelationship(BaseSQLModel, FamilyRelationshipBase, table=True):
+    user_id: int = Field(foreign_key="user.id")
+    relative_id: int = Field(foreign_key="user.id")
 
 
 class UserBase(SQLModel):
-    email: str = Field(unique=True, nullable=False, index=True)
-    first_name: str = Field(nullable=False)
+    first_name: str
     last_name: str
-    password: str | None = Field(default=None)
-    role: UserType
-    is_verified: bool = False
-    is_active: bool = True
-    source: str = Field(nullable=True, default=UserSource.self)
+    dob: str = Field(...)
+    mobile: str = Field(regex="^[0-9]{10}$", unique=True)
+    is_parent: bool = Field(default=False)
+
+    @field_validator("dob")
+    def validate_dob_format(cls, value):
+        try:
+            # Check if the date is in the format YYYY-MM-DD
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError:
+            raise ValueError("Date of birth must be in the format YYYY-MM-DD")
+        return value
+
+    class Config:
+        json_encoders = {date: lambda v: v.isoformat()}
 
 
-class User(BaseModel, UserBase):
-    pass
-
-
-class VerifyUser(SQLModel):
-    access_token: str
-
-
-class VerifyTokenResponse(SQLModel):
-    success: bool = True
-    message: str = "success"
-    user_id: str | None = None
+class User(BaseSQLModel, UserBase, table=True):
+    # Relationships
+    relationships: List["FamilyRelationship"] = Relationship(
+        back_populates="user",
+    )

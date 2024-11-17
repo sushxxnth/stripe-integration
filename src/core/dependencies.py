@@ -10,25 +10,11 @@ from src.user.utils import verify_token
 security = HTTPBearer()
 
 
-async def cache():
-    return aioredis.from_url(
-        f"rediss://:{settings.REDIS_PASSWORD}@{settings.REDIS_HOST}:{settings.REDIS_PORT}",
-        decode_responses=True,
-    )
-
-
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    cache: Redis = Depends(cache),
 ) -> User:
     token = verify_token(VerifyUser(access_token=credentials.credentials))
     if not token.success:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail=token.message
         )
-    cache_user = await cache.hgetall(f"user:{token.user_id}")
-    if not cache_user:
-        # need to check db
-        pass
-    user_data = convert_data_to_dict(cache_user)
-    return User(**user_data)
