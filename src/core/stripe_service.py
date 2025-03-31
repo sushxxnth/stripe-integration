@@ -4,7 +4,7 @@ from fastapi import HTTPException
 from dotenv import load_dotenv
 from uuid import uuid4
 from datetime import datetime
-from .models import Payment, PaymentStatus  # Import the Payment model and PaymentStatus Enum
+from .models import Payment, PaymentStatus  
 
 load_dotenv()
 
@@ -13,11 +13,9 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 if not stripe.api_key:
     raise ValueError("Stripe API key is missing")
 
-
 payments_db = []
 
 def create_checkout_session(amount: int, currency: str, success_url: str, cancel_url: str):
-    
     try:
         session = stripe.checkout.Session.create(
             payment_method_types=["card"],
@@ -37,13 +35,12 @@ def create_checkout_session(amount: int, currency: str, success_url: str, cancel
         )
         
         payment = Payment(
-            payment_id=str(uuid4()), 
+            payment_id=str(uuid4()),
             amount=amount,
             currency=currency,
-            status=PaymentStatus.pending,  
+            status=PaymentStatus.pending,
         )
         
-      
         payments_db.append(payment)
         
         return session  
@@ -51,15 +48,11 @@ def create_checkout_session(amount: int, currency: str, success_url: str, cancel
         raise HTTPException(status_code=400, detail=str(e))
 
 def update_payment_status(payment_id: str, status: PaymentStatus):
-    """Update the status of a payment."""
     try:
-      
         payment = next((p for p in payments_db if p.payment_id == payment_id), None)
-        
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found.")
         
-       
         payment.status = status
         payment.updated_at = datetime.now()  
         
@@ -69,11 +62,8 @@ def update_payment_status(payment_id: str, status: PaymentStatus):
         raise HTTPException(status_code=400, detail=str(e))
 
 def retrieve_payment_status(payment_id: str):
-
     try:
-        
         payment = next((p for p in payments_db if p.payment_id == payment_id), None)
-        
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found.")
         
@@ -83,27 +73,33 @@ def retrieve_payment_status(payment_id: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 def retrieve_payment_intent(payment_intent_id: str):
-   
     try:
         return stripe.PaymentIntent.retrieve(payment_intent_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 def create_payment_intent(amount: int, currency: str):
-    
     try:
         intent = stripe.PaymentIntent.create(
             amount=amount,
             currency=currency,
             payment_method_types=["card"],
         )
-        return intent 
+        return intent  
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
 def retrieve_checkout_session(session_id: str):
     try:
         session = stripe.checkout.Session.retrieve(session_id)
-        return session
+
+        if session.payment_status == "paid":
+            status = PaymentStatus.success
+        elif session.payment_status in ["unpaid", "open"]:
+            status = PaymentStatus.pending
+        else:
+            status = PaymentStatus.failed
+
+        return {"session_id": session.id, "status": status}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

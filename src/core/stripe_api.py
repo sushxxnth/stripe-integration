@@ -3,7 +3,7 @@ from src.core.stripe_service import (
     create_checkout_session,  
     retrieve_payment_intent,  
     create_payment_intent,
-    retrieve_checkout_session,  
+    retrieve_checkout_session,
 )
 
 router = APIRouter()
@@ -31,8 +31,5 @@ async def create_intent(amount: int, currency: str):
 
 @router.get("/payment-status/{session_id}")
 async def get_payment_status(session_id: str):
-    try:
-        session = retrieve_checkout_session(session_id)
-        return {"session_id": session.id, "status": session.payment_status}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error retrieving session: {str(e)}")
+    session_status = retrieve_checkout_session(session_id)
+    return session_status
